@@ -1,0 +1,97 @@
+#include <WiFi.h>
+#include <SocketIoClient.h>
+
+#define ONBOARD_LED 2  // LED integrado en la placa ESP32
+
+// Configuración de la red WiFi y servidor
+const char* ssid     = "Pixel_6852";  // Cambia esto por el nombre de tu red WiFi
+const char* password = "hola12345";  // Cambia esto por la contraseña de tu red
+const char* server   = "10.25.145.127";   // IP del servidor Node.js
+const uint16_t port  = 3000;          // Puerto en el que corre el servidor
+
+// Variables para el envío de datos
+String mensaje;
+uint64_t now = 0;
+uint64_t timestamp = 0;
+
+int valor;
+float valor_f;
+
+// Inicialización del cliente de WebSockets
+SocketIoClient socketIO;
+
+void setup() {
+  Serial.begin(115200);
+  
+  // Conectar a la red WiFi
+  conectar_WiFiSTA();
+  
+  // Configurar WebSockets y definir eventos
+  socketIO.begin(server, port);
+  socketIO.on("desde_servidor_comando", procesar_mensaje_recibido);
+
+  // Configurar pines de salida
+  pinMode(ONBOARD_LED, OUTPUT);
+  pinMode(12, OUTPUT);
+  pinMode(14, OUTPUT);
+  pinMode(27, OUTPUT);
+  pinMode(26, OUTPUT);
+}
+
+void loop() {
+  now = millis();
+
+  // Enviar datos al servidor cada segundo
+  if (now - timestamp > 1000) {
+    timestamp = now;
+
+    // Leer señal analógica y convertirla a un rango de 0 a 200
+    valor = analogRead(34);
+    valor_f = ((float)valor / 4095) * 200;
+    
+    // Enviar el dato al servidor
+    mensaje = "\"" + String(valor_f) + "\"";
+    socketIO.emit("desde_esp32", mensaje.c_str());
+  }
+  
+  // Mantener la conexión con el servidor
+  socketIO.loop();
+}
+
+// Función para conectar a la red WiFi
+void conectar_WiFiSTA() {
+   delay(10);
+   Serial.println("\nConectando a WiFi...");
+   WiFi.mode(WIFI_STA);
+   WiFi.begin(ssid, password);
+   
+   while (WiFi.status() != WL_CONNECTED) { 
+     delay(100);
+     Serial.print(".");
+   }
+   
+   Serial.println("\nConexión exitosa");
+   Serial.print("Dirección IP asignada: ");
+   Serial.println(WiFi.localIP());
+}
+
+// Función para procesar comandos recibidos desde el servidor
+void procesar_mensaje_recibido(const char* payload, size_t length) {
+  Serial.printf("Mensaje recibido: %s\n", payload);
+  String paystring = String(payload);
+  
+  if (paystring == "ON") {
+    digitalWrite(ONBOARD_LED, HIGH);
+    digitalWrite(12, HIGH);
+    digitalWrite(14, HIGH);
+    digitalWrite(27, HIGH);
+    digitalWrite(26, HIGH);
+  } 
+  else if (paystring == "OFF") {
+    digitalWrite(ONBOARD_LED, LOW);
+    digitalWrite(12, LOW);
+    digitalWrite(14, LOW);
+    digitalWrite(27, LOW);
+    digitalWrite(26, LOW);
+  }
+}
